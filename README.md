@@ -52,7 +52,7 @@ Même chose dans une Server Action (`"use server"`). `notifyIndexNow` ne lève j
 Copier [`templates/indexnow.yml`](./templates/indexnow.yml) dans `.github/workflows/`, définir `INDEXNOW_KEY` et `INDEXNOW_HOST` dans les variables du dépôt. Le workflow utilise la version d'`indexnow-kit` figée par le lockfile du site (jamais un `bunx` non épinglé, qui exécuterait n'importe quel paquet portant ce nom avec la clé dans l'environnement).
 
 - Déclencheurs : déploiement Vercel de production réussi, un passage quotidien (rattrapage + maintien du cache d'état, que GitHub évince après 7 jours sans accès), et un lancement manuel avec l'option `allow_mass`.
-- `cache-mode: write` est indispensable : `deployment_status` est un déclencheur « low-trust » dont les sauvegardes de cache échouent sinon sans erreur ([doc GitHub](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)).
+- `actions/cache` refuse l'événement `deployment_status` (pas de `GITHUB_REF`) : le job `relay` relance donc le workflow en `workflow_dispatch` sur la branche par défaut, où l'état se restaure et se sauvegarde. Constaté sur un vrai run le 2026-11-13.
 - Nom d'environnement : le filtre accepte tout ce qui commence par `Production` (à confirmer dans l'onglet Deployments du dépôt).
 
 - Premier passage : mémorise le sitemap sans rien soumettre (la FAQ IndexNow déconseille la rétro-soumission). `--initial` pour forcer.

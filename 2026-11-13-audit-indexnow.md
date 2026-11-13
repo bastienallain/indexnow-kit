@@ -70,3 +70,9 @@ Garde-fous communs : `VERCEL_ENV === 'production'` obligatoire, host canonique f
 Webhook Vercel `deployment.succeeded` : option pour les comptes Pro, mais il faut alors un stockage d'état (KV) côté app. La GitHub Action reste plus simple et marche sur Hobby.
 
 **npm** : publier en public est possible (nom `indexnow-kit` libre au 2026-11-13, V `npm view` → 404). Commencer par une installation depuis le dépôt Git, publier quand le paquet a tourné sur un vrai site.
+
+## 7. Leçon du premier vrai run (acieb, 2026-11-13)
+
+Hypothèse tombée : « `cache-mode: write` suffit pour sauvegarder l'état depuis `deployment_status` ». Mesure : `actions/cache` (restore et save) refuse cet événement avec `Event Validation Error: The event type deployment_status is not supported because it's not tied to a branch or tag ref` (V, log du run 43404160647 sur acieb-v2). Aucun état sauvegardé.
+
+Correctif : le job déclenché par `deployment_status` relance le workflow en `workflow_dispatch` sur la branche par défaut (V, [doc GitHub](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow) : un `workflow_dispatch` créé avec `GITHUB_TOKEN` lance toujours un run). Le garde-fou « Aucun état précédent » en `::warning::` a rempli son rôle : sans lui, l'échec serait passé inaperçu.
