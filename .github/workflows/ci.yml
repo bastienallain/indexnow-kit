@@ -18,4 +18,8 @@ jobs:
       # dist/ est commité pour l'installation depuis GitHub : il doit correspondre à src/.
       - run: bun run build
       - name: dist/ à jour
-        run: git diff --exit-code -- dist || (echo "::error::dist/ n'est pas à jour : lancer bun run build et commiter." && exit 1)
+        run: |
+          if ! git diff --exit-code -- dist; then
+            echo "::error::dist/ n'est pas à jour. Lancer bun run build et commiter dist/."
+            exit 1
+          fi
