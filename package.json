@@ -5,12 +5,22 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
-  "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  "engines": {
+    "node": ">=20"
   },
-  "bin": { "indexnow-kit": "./dist/cli.js" },
-  "files": ["dist", "templates"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "indexnow-kit": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "bun build src/index.ts src/cli.ts --outdir dist --target node --format esm --packages external && tsc -p tsconfig.build.json",
@@ -25,5 +35,9 @@
     "@types/bun": "latest",
     "@types/node": "^26.6.6",
     "typescript": "^7.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bastienallain/indexnow-kit.git"
   }
 }

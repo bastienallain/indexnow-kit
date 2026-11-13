@@ -16,7 +16,7 @@ Cloudflare n'intervient pas : en DNS only (nuage gris, recommandé avec Vercel),
 ## Installation (5 minutes)
 
 ```sh
-bun add github:<owner>/indexnow-kit#<sha>   # ou bun add indexnow-kit une fois publié
+bun add github:bastienallain/indexnow-kit#<sha>   # ou bun add indexnow-kit une fois publié
 bunx indexnow-kit init                 # crée public/<clé>.txt et affiche INDEXNOW_KEY
 ```
 
