@@ -53,13 +53,13 @@ jobs:
       INDEXNOW_HOST: ${{ vars.INDEXNOW_HOST }}
       INDEXNOW_ENABLED: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       # Avec pnpm : remplacer par pnpm/action-setup + `pnpm install --frozen-lockfile`, et `pnpm exec`.
       - run: bun install --frozen-lockfile
 
       - name: Restaurer l'état du dernier passage
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .indexnow
           key: indexnow-state-${{ github.run_id }}
@@ -77,7 +77,7 @@ jobs:
       # Sauvegardé seulement si tout a réussi : sinon le prochain passage retentera.
       - name: Sauvegarder l'état
         if: success()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .indexnow
           key: indexnow-state-${{ github.run_id }}
