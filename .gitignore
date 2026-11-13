@@ -1,0 +1,5 @@
+node_modules
+dist
+.indexnow
+*.log
+.DS_Store

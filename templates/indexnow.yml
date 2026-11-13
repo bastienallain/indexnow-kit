@@ -1,0 +1,46 @@
+# .github/workflows/indexnow.yml
+# Soumet à IndexNow ce qui a changé dans le sitemap, APRÈS la mise en ligne Vercel (tous plans, Hobby compris).
+# Secrets/variables du dépôt : INDEXNOW_KEY (variable ou secret), INDEXNOW_HOST (ex. www.example.com).
+name: IndexNow
+
+on:
+  deployment_status:
+
+concurrency:
+  group: indexnow
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    # L'intégration GitHub de Vercel nomme l'environnement de prod « Production » (à vérifier dans
+    # l'onglet Deployments du dépôt ; adapter si le nom diffère).
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY || secrets.INDEXNOW_KEY }}
+      INDEXNOW_HOST: ${{ vars.INDEXNOW_HOST }}
+      INDEXNOW_ENABLED: "true"
+    steps:
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Restaurer l'état du dernier passage
+        uses: actions/cache/restore@v4
+        with:
+          path: .indexnow
+          key: indexnow-state-${{ github.run_id }}
+          restore-keys: indexnow-state-
+
+      - name: Vérifier le fichier de clé
+        run: bunx indexnow-kit@0.1.0 verify
+
+      - name: Diff du sitemap et soumission
+        run: bunx indexnow-kit@0.1.0 sync --sitemap "https://${INDEXNOW_HOST}/sitemap.xml"
+
+      # L'état n'est sauvegardé que si toutes les soumissions ont réussi.
+      - name: Sauvegarder l'état
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .indexnow
+          key: indexnow-state-${{ github.run_id }}

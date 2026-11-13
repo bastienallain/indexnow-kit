@@ -1,0 +1,29 @@
+{
+  "name": "indexnow-kit",
+  "version": "0.1.0",
+  "description": "IndexNow pour Next.js sur Vercel : soumission ciblée après revalidation, diff de sitemap après déploiement, vérification du fichier de clé.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "bin": { "indexnow-kit": "./dist/cli.js" },
+  "files": ["dist", "templates"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && bun build src/index.ts src/cli.ts --outdir dist --target node --format esm --packages external && tsc -p tsconfig.build.json",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "prepare": "bun run build"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}
