@@ -26,7 +26,7 @@
     "build": "bun build src/index.ts src/cli.ts --outdir dist --target node --format esm --packages external && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "bun check",
-    "prepare": "bun run build"
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "zod": "^4.6.7"

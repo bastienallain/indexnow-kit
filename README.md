@@ -77,7 +77,7 @@ Redirection (middleware i18n), 401/403 (Deployment Protection « All Deployments
 
 ## Limites connues
 
-- Installation depuis GitHub : le script `prepare` compile avec bun, qui doit donc être présent. Publier sur npm supprime cette contrainte.
+- Installation depuis GitHub : `dist/` est commité (bun et pnpm bloquent les scripts d'installation des dépendances). Après toute modification de `src/`, lancer `bun run build` et commiter `dist/` ; la CI le vérifie.
 - Toute URL écartée (host différent, par exemple www contre apex) fait échouer `submit`/`sync` : c'est voulu, l'état n'avance pas tant que le host n'est pas corrigé.
 
 ## Développement

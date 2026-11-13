@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4 # même version qu'en local : la sortie de bun build doit être identique
+      - run: bun install --frozen-lockfile
+      - run: bun check
+      - run: bun test
+      # dist/ est commité pour l'installation depuis GitHub : il doit correspondre à src/.
+      - run: bun run build
+      - name: dist/ à jour
+        run: git diff --exit-code -- dist || (echo "::error::dist/ n'est pas à jour : lancer bun run build et commiter." && exit 1)
