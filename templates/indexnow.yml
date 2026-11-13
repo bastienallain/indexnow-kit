@@ -17,10 +17,6 @@ on:
         type: boolean
         default: false
 
-concurrency:
-  group: indexnow
-  cancel-in-progress: false
-
 jobs:
   # actions/cache refuse deployment_status (« not tied to a branch or tag ref ») : l'état ne pourrait
   # être ni restauré ni sauvegardé. Ce job se contente de relancer le workflow en workflow_dispatch
@@ -42,6 +38,12 @@ jobs:
 
   submit:
     if: github.event_name != 'deployment_status'
+    # Concurrence sur ce job seulement : au niveau du workflow, un deployment_status (même un Preview
+    # ignoré) pouvait annuler un workflow_dispatch en attente. Annuler un submit en attente au profit
+    # d'un plus récent ne perd rien : le diff cumule depuis le dernier état sauvegardé.
+    concurrency:
+      group: indexnow-submit
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
