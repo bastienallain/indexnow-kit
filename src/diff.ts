@@ -5,6 +5,7 @@ export interface SitemapDiff {
   changed: string[];
   /** Les URL supprimées se soumettent aussi (https://www.indexnow.org/faq). */
   removed: string[];
+  /** max(taille précédente, taille actuelle). */
   total: number;
 }
 
@@ -14,11 +15,11 @@ export function diffSitemaps(previous: SitemapEntries, next: SitemapEntries): Si
   const removed: string[] = [];
   for (const [url, lastmod] of next) {
     if (!previous.has(url)) added.push(url);
-    // Sans lastmod des deux côtés, on ne peut rien affirmer : on ne soumet pas.
+    // Sans lastmod côté nouveau sitemap, on ne peut rien affirmer : on ne soumet pas.
     else if (lastmod !== null && lastmod !== previous.get(url)) changed.push(url);
   }
   for (const url of previous.keys()) if (!next.has(url)) removed.push(url);
-  return { added, changed, removed, total: next.size };
+  return { added, changed, removed, total: Math.max(previous.size, next.size) };
 }
 
 export interface MassChangeCheck {
@@ -26,19 +27,27 @@ export interface MassChangeCheck {
   reason?: string;
 }
 
+const ONE_HOUR = 3_600_000;
+
 /**
- * Garde-fou contre `lastModified: new Date()` dans `app/sitemap.ts` : chaque déploiement
- * « modifie » alors toutes les URL, et tout resoumettre est exactement ce que la FAQ IndexNow interdit.
+ * Garde-fou : tout resoumettre est exactement ce que la FAQ IndexNow interdit.
+ * Causes typiques : `lastModified: new Date()` dans `app/sitemap.ts`, sitemap vidé ou tronqué.
  */
 export function checkMassChange(diff: SitemapDiff, next: SitemapEntries, maxRatio = 0.5, minUrls = 20): MassChangeCheck {
   if (diff.total < minUrls) return { suspicious: false };
-  const ratio = diff.changed.length / diff.total;
+  const touched = diff.added.length + diff.changed.length + diff.removed.length;
+  const ratio = touched / diff.total;
   if (ratio <= maxRatio) return { suspicious: false };
 
-  const lastmods = new Set([...next.values()].filter(Boolean));
+  if (next.size === 0) return { suspicious: true, reason: "Le sitemap est vide : tout le site serait soumis comme supprimé." };
+  if (diff.removed.length > diff.total * maxRatio) {
+    return { suspicious: true, reason: `${diff.removed.length} URL ont disparu du sitemap (sitemap tronqué, mauvais host, ou refonte).` };
+  }
+  const times = [...next.values()].map((v) => (v ? Date.parse(v) : NaN)).filter((t) => !Number.isNaN(t));
+  const spread = times.length ? times.reduce((a, b) => Math.max(a, b)) - times.reduce((a, b) => Math.min(a, b)) : Infinity;
   const reason =
-    lastmods.size === 1
-      ? `Toutes les URL ont le même lastmod (${[...lastmods][0]}) : app/sitemap.ts utilise sans doute new Date(). Utiliser la vraie date de modification du contenu.`
-      : `${Math.round(ratio * 100)} % des URL ont changé de lastmod (seuil ${Math.round(maxRatio * 100)} %).`;
+    times.length === next.size && spread < ONE_HOUR
+      ? "Toutes les URL ont un lastmod dans la même heure : app/sitemap.ts utilise sans doute new Date(). Utiliser la vraie date de modification du contenu."
+      : `${Math.round(ratio * 100)} % des URL ont changé (seuil ${Math.round(maxRatio * 100)} %).`;
   return { suspicious: true, reason };
 }

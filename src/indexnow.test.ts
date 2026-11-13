@@ -7,6 +7,7 @@ import {
   generateKey,
   isValidKey,
   loadConfig,
+  normalizeHost,
   notifyIndexNow,
   parseRetryAfter,
   parseSitemap,
@@ -192,5 +193,45 @@ describe("notifyIndexNow", () => {
     await notifyIndexNow(["/blog/x", "https://ex.com/y"], { config, fetch: fn, logger: silent });
     expect(JSON.parse(String(calls[0]?.init?.body)).urlList).toEqual(["https://ex.com/blog/x", "https://ex.com/y"]);
     expect(await notifyIndexNow("/x", { logger: silent, config: undefined })).toBeNull();
+  });
+});
+
+describe("corrections de la relecture", () => {
+  test("une page HTML n'est pas un sitemap", () => {
+    expect(() => parseSitemap("<!doctype html><html></html>")).toThrow("pas un sitemap");
+  });
+  test("pas de double décodage, <image:loc> ignoré", () => {
+    const xml = `<urlset><url><image:image><image:loc>https://ex.com/img.png</image:loc></image:image>
+      <loc>https://ex.com/a?q=&amp;#38;</loc></url></urlset>`;
+    expect(parseSitemap(xml).items[0]?.loc).toBe("https://ex.com/a?q=&#38;");
+  });
+  test("sitemap .xml.gz", async () => {
+    const xml = `<urlset><url><loc>https://ex.com/gz</loc></url></urlset>`;
+    const gz = Bun.gzipSync(new TextEncoder().encode(xml));
+    const { fn } = mockFetch(() => new Response(gz));
+    const entries = await fetchSitemapEntries("https://ex.com/s.xml.gz", { fetch: fn });
+    expect([...entries.keys()]).toEqual(["https://ex.com/gz"]);
+  });
+  test("IDN et port par défaut", () => {
+    expect(normalizeHost("https://Café.fr:443/x")).toBe("xn--caf-dma.fr");
+    expect(prepareUrls(["https://café.fr/a"], "café.fr").accepted).toEqual(["https://xn--caf-dma.fr/a"]);
+  });
+  test("une URL écartée rend le résultat non ok", async () => {
+    const { fn } = mockFetch(() => new Response(null, { status: 200 }));
+    const result = await submitUrls(["https://ex.com/a"], { key: KEY, host: "www.ex.com", fetch: fn });
+    expect(result.ok).toBe(false);
+    expect(result.rejected).toHaveLength(1);
+  });
+  test("sitemap vidé : suppression massive détectée", () => {
+    const prev = new Map(Array.from({ length: 100 }, (_, i) => [`/p${i}`, null] as const));
+    const next = new Map<string, string | null>();
+    const diff = diffSitemaps(prev, next);
+    expect(diff.total).toBe(100);
+    expect(checkMassChange(diff, next).suspicious).toBe(true);
+  });
+  test("lastmod new Date() aux millisecondes près", () => {
+    const prev = new Map(Array.from({ length: 30 }, (_, i) => [`/p${i}`, "2026-01-01T00:00:00.000Z"] as const));
+    const next = new Map(Array.from({ length: 30 }, (_, i) => [`/p${i}`, `2026-11-13T10:00:00.${String(i).padStart(3, "0")}Z`] as const));
+    expect(checkMassChange(diffSitemaps(prev, next), next).reason).toContain("new Date()");
   });
 });

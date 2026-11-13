@@ -35,6 +35,7 @@ export async function verifyKeyFile(options: {
   key: string;
   keyLocation?: string;
   fetch?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<VerifyResult> {
   const url = options.keyLocation ?? defaultKeyLocation(options.host, options.key);
   const result: VerifyResult = { ok: false, url, status: null, problems: [], warnings: [] };
@@ -54,7 +55,11 @@ export async function verifyKeyFile(options: {
 
   let response: Response;
   try {
-    response = await (options.fetch ?? fetch)(url, { redirect: "manual", headers: { Accept: "text/plain" } });
+    response = await (options.fetch ?? fetch)(url, {
+      redirect: "manual",
+      headers: { Accept: "text/plain" },
+      signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
+    });
   } catch (error) {
     result.problems.push(`Requête impossible : ${(error as Error).message}`);
     return result;

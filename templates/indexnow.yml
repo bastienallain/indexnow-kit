@@ -1,10 +1,21 @@
-# .github/workflows/indexnow.yml
+# .github/workflows/indexnow.yml — à copier dans le dépôt du SITE.
 # Soumet à IndexNow ce qui a changé dans le sitemap, APRÈS la mise en ligne Vercel (tous plans, Hobby compris).
-# Secrets/variables du dépôt : INDEXNOW_KEY (variable ou secret), INDEXNOW_HOST (ex. www.example.com).
+# Prérequis : indexnow-kit dans les dépendances du site (version figée par le lockfile).
+# Variables du dépôt (Settings → Secrets and variables → Actions → Variables) : INDEXNOW_KEY, INDEXNOW_HOST.
 name: IndexNow
 
 on:
   deployment_status:
+  # Filet de sécurité quotidien : rattrape les changements de contenu CMS et garde le cache d'état
+  # en vie (GitHub évince un cache non consulté depuis 7 jours).
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      allow_mass:
+        description: "Autoriser une soumission massive (après une vraie refonte)"
+        type: boolean
+        default: false
 
 concurrency:
   group: indexnow
@@ -12,17 +23,26 @@ concurrency:
 
 jobs:
   submit:
-    # L'intégration GitHub de Vercel nomme l'environnement de prod « Production » (à vérifier dans
-    # l'onglet Deployments du dépôt ; adapter si le nom diffère).
-    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       startsWith(github.event.deployment.environment, 'Production'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # deployment_status est un déclencheur « low-trust » : sans ceci, l'état n'est jamais sauvegardé.
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching
+    cache-mode: write
+    permissions:
+      contents: read
     env:
-      INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY || secrets.INDEXNOW_KEY }}
+      INDEXNOW_KEY: ${{ vars.INDEXNOW_KEY }}
       INDEXNOW_HOST: ${{ vars.INDEXNOW_HOST }}
       INDEXNOW_ENABLED: "true"
     steps:
+      - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+      # Avec pnpm : remplacer par pnpm/action-setup + `pnpm install --frozen-lockfile`, et `pnpm exec`.
+      - run: bun install --frozen-lockfile
 
       - name: Restaurer l'état du dernier passage
         uses: actions/cache/restore@v4
@@ -32,12 +52,15 @@ jobs:
           restore-keys: indexnow-state-
 
       - name: Vérifier le fichier de clé
-        run: bunx indexnow-kit@0.1.0 verify
+        run: bun x --no-install indexnow-kit verify
 
       - name: Diff du sitemap et soumission
-        run: bunx indexnow-kit@0.1.0 sync --sitemap "https://${INDEXNOW_HOST}/sitemap.xml"
+        run: >-
+          bun x --no-install indexnow-kit sync
+          --sitemap "https://${INDEXNOW_HOST}/sitemap.xml"
+          ${{ inputs.allow_mass && '--allow-mass' || '' }}
 
-      # L'état n'est sauvegardé que si toutes les soumissions ont réussi.
+      # Sauvegardé seulement si tout a réussi : sinon le prochain passage retentera.
       - name: Sauvegarder l'état
         if: success()
         uses: actions/cache/save@v4

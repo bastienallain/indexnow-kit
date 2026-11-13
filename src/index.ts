@@ -33,7 +33,7 @@ export async function notifyIndexNow(pathsOrUrls: string | string[], options: No
     });
     if (result.dryRun) log.info(`[indexnow] dry-run (hors production) : ${result.submitted.length} URL non envoyées`);
     for (const batch of result.batches) {
-      (batch.ok ? log.info : log.error)(`[indexnow] ${batch.status} ${batch.urls} URL : ${batch.message}`);
+      log[batch.ok ? "info" : "error"](`[indexnow] ${batch.status} ${batch.urls} URL : ${batch.message}`);
     }
     for (const r of result.rejected) log.warn(`[indexnow] écartée ${r.url} : ${r.reason}`);
     return result;

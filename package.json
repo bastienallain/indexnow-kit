@@ -13,7 +13,7 @@
   "files": ["dist", "templates"],
   "sideEffects": false,
   "scripts": {
-    "build": "rm -rf dist && bun build src/index.ts src/cli.ts --outdir dist --target node --format esm --packages external && tsc -p tsconfig.build.json",
+    "build": "bun build src/index.ts src/cli.ts --outdir dist --target node --format esm --packages external && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "bun check",
     "prepare": "bun run build"

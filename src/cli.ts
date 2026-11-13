@@ -32,14 +32,24 @@ function report(result: SubmitResult) {
   for (const r of result.rejected) console.warn(`écartée ${r.url} : ${r.reason}`);
 }
 
-async function readState(path: string): Promise<SitemapEntries | null> {
+/** En CI GitHub, `::warning::` remonte dans le résumé du run au lieu de rester dans les logs. */
+function warn(message: string) {
+  console.warn(process.env.GITHUB_ACTIONS === "true" ? `::warning title=indexnow-kit::${message}` : `attention : ${message}`);
+}
+
+async function readState(path: string, sitemap: string): Promise<SitemapEntries | null> {
+  let state: StateFile;
   try {
-    const state = JSON.parse(await readFile(path, "utf8")) as StateFile;
-    return new Map(Object.entries(state.entries));
+    state = JSON.parse(await readFile(path, "utf8")) as StateFile;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+  if (state.sitemap !== sitemap) {
+    warn(`L'état mémorisé concerne ${state.sitemap}, pas ${sitemap} : il est ignoré.`);
+    return null;
+  }
+  return new Map(Object.entries(state.entries));
 }
 
 async function writeState(path: string, sitemap: string, entries: SitemapEntries) {
@@ -101,21 +111,29 @@ async function main(argv: string[]): Promise<number> {
 
   if (command === "sync") {
     if (!values.sitemap) throw new Error("sync : --sitemap <url> requis.");
+    const maxRatio = Number(values["max-ratio"]);
+    if (!(maxRatio > 0 && maxRatio <= 1)) throw new Error("--max-ratio : nombre entre 0 (exclu) et 1.");
     const next = await fetchSitemapEntries(values.sitemap);
-    const previous = await readState(values.state);
+    const previous = await readState(values.state, values.sitemap);
 
     if (!previous && !values.initial) {
       // La FAQ IndexNow déconseille de soumettre rétroactivement : on mémorise seulement.
       if (config.enabled) await writeState(values.state, values.sitemap, next);
-      console.log(`Premier passage : ${next.size} URL mémorisées, rien n'est soumis (--initial pour tout envoyer).`);
+      warn(
+        `Aucun état précédent : ${next.size} URL ${config.enabled ? "mémorisées" : "lues (dry-run : état non sauvegardé)"}, rien n'est soumis. Normal au premier passage ; sinon l'état a été perdu (cache expiré ?).`,
+      );
       return 0;
+    }
+    if (previous && previous.size > 0 && next.size === 0) {
+      console.error("Arrêt : le sitemap ne contient plus aucune URL. Rien n'est soumis, l'état est conservé.");
+      return 2;
     }
 
     const diff = diffSitemaps(previous ?? new Map(), next);
     console.log(`+${diff.added.length} ajoutées · ~${diff.changed.length} modifiées · -${diff.removed.length} supprimées (sur ${diff.total})`);
 
     if (previous && !values["allow-mass"]) {
-      const mass = checkMassChange(diff, next, Number(values["max-ratio"]));
+      const mass = checkMassChange(diff, next, maxRatio);
       if (mass.suspicious) {
         console.error(`Arrêt : ${mass.reason}\nRelancer avec --allow-mass après une vraie refonte.`);
         return 2;
@@ -134,10 +152,13 @@ async function main(argv: string[]): Promise<number> {
   return 1;
 }
 
+// exitCode plutôt que process.exit() : laisse stdout se vider quand il est redirigé.
 main(process.argv.slice(2)).then(
-  (code) => process.exit(code),
+  (code) => {
+    process.exitCode = code;
+  },
   (error: Error) => {
     console.error(`indexnow-kit : ${error.message}`);
-    process.exit(1);
+    process.exitCode = 1;
   },
 );

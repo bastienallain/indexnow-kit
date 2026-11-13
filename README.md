@@ -16,7 +16,7 @@ Cloudflare n'intervient pas : en DNS only (nuage gris, recommandé avec Vercel),
 ## Installation (5 minutes)
 
 ```sh
-bun add github:<owner>/indexnow-kit   # ou bun add indexnow-kit une fois publié
+bun add github:<owner>/indexnow-kit#<sha>   # ou bun add indexnow-kit une fois publié
 bunx indexnow-kit init                 # crée public/<clé>.txt et affiche INDEXNOW_KEY
 ```
 
@@ -49,11 +49,15 @@ Même chose dans une Server Action (`"use server"`). `notifyIndexNow` ne lève j
 
 ## Déploiements : GitHub Action
 
-Copier [`templates/indexnow.yml`](./templates/indexnow.yml) dans `.github/workflows/`, définir `INDEXNOW_KEY` et `INDEXNOW_HOST` dans les variables du dépôt.
+Copier [`templates/indexnow.yml`](./templates/indexnow.yml) dans `.github/workflows/`, définir `INDEXNOW_KEY` et `INDEXNOW_HOST` dans les variables du dépôt. Le workflow utilise la version d'`indexnow-kit` figée par le lockfile du site (jamais un `bunx` non épinglé, qui exécuterait n'importe quel paquet portant ce nom avec la clé dans l'environnement).
+
+- Déclencheurs : déploiement Vercel de production réussi, un passage quotidien (rattrapage + maintien du cache d'état, que GitHub évince après 7 jours sans accès), et un lancement manuel avec l'option `allow_mass`.
+- `cache-mode: write` est indispensable : `deployment_status` est un déclencheur « low-trust » dont les sauvegardes de cache échouent sinon sans erreur ([doc GitHub](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching)).
+- Nom d'environnement : le filtre accepte tout ce qui commence par `Production` (à confirmer dans l'onglet Deployments du dépôt).
 
 - Premier passage : mémorise le sitemap sans rien soumettre (la FAQ IndexNow déconseille la rétro-soumission). `--initial` pour forcer.
 - Ensuite : soumet ajouts, modifications de `lastmod` et suppressions.
-- Garde-fou : si plus de 50 % des URL changent d'un coup, arrêt (cas typique : `lastModified: new Date()` dans `app/sitemap.ts`). `--allow-mass` après une vraie refonte.
+- Arrêt (code 2) si la réponse n'est pas un sitemap, si le sitemap est vide, ou si plus de 50 % des URL changent d'un coup (cas typique : `lastModified: new Date()` dans `app/sitemap.ts`). `--allow-mass` après une vraie refonte.
 
 `lastModified` doit être la **vraie** date de modification du contenu, sinon le diff n'a pas de sens.
 
@@ -70,6 +74,11 @@ Copier [`templates/indexnow.yml`](./templates/indexnow.yml) dans `.github/workfl
 ## Pièges vérifiés par `verify`
 
 Redirection (middleware i18n), 401/403 (Deployment Protection « All Deployments », WAF, challenge), HTML à la place de la clé (rewrite catch-all), mauvais Content-Type.
+
+## Limites connues
+
+- Installation depuis GitHub : le script `prepare` compile avec bun, qui doit donc être présent. Publier sur npm supprime cette contrainte.
+- Toute URL écartée (host différent, par exemple www contre apex) fait échouer `submit`/`sync` : c'est voulu, l'état n'avance pas tant que le host n'est pas corrigé.
 
 ## Développement
 

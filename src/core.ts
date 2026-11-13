@@ -21,6 +21,8 @@ export interface SubmitOptions {
   dryRun?: boolean;
   /** Attente maximale acceptée sur un 429 avant d'abandonner (ms). */
   maxRetryWaitMs?: number;
+  /** Délai maximal par requête (ms). Dans `after()`, une requête bloquée occupe la fonction Vercel. */
+  timeoutMs?: number;
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -41,12 +43,14 @@ export interface SubmitResult {
   batches: BatchResult[];
 }
 
+/** `https://Café.fr:443/x` → `xn--caf-dma.fr` (punycode, port par défaut retiré). */
 export function normalizeHost(input: string): string {
-  return input
-    .trim()
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/.*$/, "")
-    .toLowerCase();
+  const bare = input.trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  try {
+    return new URL(`https://${bare}`).host;
+  } catch {
+    throw new Error(`Host invalide : ${input}`);
+  }
 }
 
 /** Garde les URL http(s) du host exact, dédoublonnées. Le protocole impose un seul host par requête (sinon 422). */
@@ -95,7 +99,8 @@ export async function submitUrls(urls: Iterable<string>, options: SubmitOptions)
   const host = normalizeHost(options.host);
   const { accepted, rejected } = prepareUrls(urls, host);
   const result: SubmitResult = {
-    ok: true,
+    // Une URL écartée signale presque toujours un mauvais host (www vs apex) : on ne la passe pas sous silence.
+    ok: rejected.length === 0,
     dryRun: Boolean(options.dryRun),
     submitted: [],
     rejected,
@@ -122,6 +127,7 @@ export async function submitUrls(urls: Iterable<string>, options: SubmitOptions)
         method: "POST",
         headers: { "Content-Type": "application/json; charset=utf-8" },
         body,
+        signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
       });
 
     let response = await send();
